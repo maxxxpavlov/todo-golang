@@ -3,18 +3,14 @@ package main
 import (
 	"context"
 	"crypto/rsa"
-	"encoding/json"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
-
 	"github.com/golang-jwt/jwt"
 	"github.com/rs/cors"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -27,14 +23,14 @@ type User struct {
 	Password string `json:"password"`
 }
 
-var privateKey *rsa.PrivateKey
+var privateKey = getPrivateKey()
 
 var DB = getDBConnection()
 
 func generateJWT(username string) (string, error) {
 	token := jwt.New(jwt.SigningMethodRS256)
 	claims := token.Claims.(jwt.MapClaims)
-	claims["exp"] = time.Now().Add(10 * time.Minute)
+	claims["exp"] = time.Now().Add(30 * time.Minute)
 	claims["username"] = username
 	tokenString, err := token.SignedString(privateKey)
 	if err != nil {
@@ -46,76 +42,6 @@ func generateJWT(username string) (string, error) {
 
 func index(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, "Hi man")
-}
-func respondWithJson(w http.ResponseWriter, data interface{}) error {
-	w.Header().Set("Content-Type", "application/json")
-	return json.NewEncoder(w).Encode(data)
-}
-
-func login(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "POST" {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		var req, user User
-		err := json.NewDecoder(r.Body).Decode(&req)
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		err = DB.Database("todo").Collection("users").FindOne(ctx, bson.D{{"username", req.Username}}).Decode(&user)
-		if err != nil {
-			http.Error(w, "", http.StatusUnauthorized)
-			return
-		}
-		if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)) != nil {
-			http.Error(w, "", http.StatusUnauthorized)
-			return
-		}
-		token, err := generateJWT(req.Username)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		data := LoginResponse{JWT: token}
-		err = respondWithJson(w, data)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	}
-}
-
-func register(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "POST" {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		var req User
-		err := json.NewDecoder(r.Body).Decode(&req)
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		token, err := generateJWT(req.Username)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		hashedBytes, _ := bcrypt.GenerateFromPassword([]byte(req.Password), 10)
-		newUser := User{Username: req.Username, Password: string(hashedBytes)}
-		result, err := DB.Database("todo").Collection("users").InsertOne(ctx, newUser)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		log.Print(result)
-		data := LoginResponse{JWT: token}
-		err = respondWithJson(w, data)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	}
 }
 
 func getDBConnection() *mongo.Client {
@@ -132,8 +58,7 @@ func getDBConnection() *mongo.Client {
 	log.Println("Connected to MongoDB")
 	return client
 }
-
-func main() {
+func getPrivateKey() rsa.PrivateKey {
 	key, err := os.ReadFile("./private.key")
 	if err != nil {
 		panic(err)
@@ -142,7 +67,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	privateKey = rsaPrivatePEM
+	return *rsaPrivatePEM
+}
+
+func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/hello", index)
