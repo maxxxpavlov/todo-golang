@@ -8,7 +8,7 @@ COPY go.sum ./
 RUN go mod download
 
 COPY *.go ./
-COPY *.key ./
+COPY keys ./keys
 RUN go build -o /todo
 
 CMD ["/todo"]

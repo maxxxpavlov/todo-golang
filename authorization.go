@@ -25,7 +25,7 @@ type JWTClaim struct {
 }
 
 func getPrivateKey() rsa.PrivateKey {
-	key, err := os.ReadFile("./private.key")
+	key, err := os.ReadFile("./keys/private.key")
 	if err != nil {
 		panic(err)
 	}
@@ -36,7 +36,7 @@ func getPrivateKey() rsa.PrivateKey {
 	return *rsaPrivatePEM
 }
 func getPublicKey() rsa.PublicKey {
-	key, err := os.ReadFile("./public.key")
+	key, err := os.ReadFile("./keys/public.key")
 	if err != nil {
 		panic(err)
 	}
