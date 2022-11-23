@@ -1,0 +1,27 @@
+# Use root/example as user/password credentials
+version: '3.1'
+
+services:
+  todo-api:
+    build: .
+    restart: always
+    ports:
+      - 3000:3000
+    environment:
+      - mongourl=mongodb://root:example@mongo/
+  swagger:
+    image: swaggerapi/swagger-ui
+    restart: always
+    environment:
+      - URL=https://raw.githubusercontent.com/maxxxpavlov/todo/main/swagger.yaml
+    ports:
+      - 3001:8080
+  mongo:
+    image: mongo
+    restart: always
+    ports:
+      - 27017:27017
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+      MONGO_INITDB_DATABASE: todo
