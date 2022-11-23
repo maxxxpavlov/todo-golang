@@ -54,12 +54,14 @@ func todoHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid token", http.StatusUnauthorized)
 		return
 	}
-	username := claims.Username
+	ctx := r.Context()
+	ctx = context.WithValue(ctx, "username", claims.Username)
+	r = r.WithContext(ctx)
 	switch r.Method {
 	case http.MethodGet:
 		getTODO(w, r)
 	case http.MethodPost:
-		createTODO(w, r, username)
+		createTODO(w, r)
 	case http.MethodPut:
 		updateTODO(w, r)
 	case http.MethodDelete:
@@ -69,7 +71,7 @@ func todoHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func getTODO(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 	var todos []TODO
 	todos = make([]TODO, 0)
@@ -92,8 +94,8 @@ func getTODO(w http.ResponseWriter, r *http.Request) {
 	respondWithJson(w, TODOResponse{todos})
 
 }
-func createTODO(w http.ResponseWriter, r *http.Request, username string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+func createTODO(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 	var todo POSTTODORequest
 	log.Println(r.Body)
@@ -104,7 +106,7 @@ func createTODO(w http.ResponseWriter, r *http.Request, username string) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	newTodo := TODO{Text: todo.Text, Creator: username}
+	newTodo := TODO{Text: todo.Text, Creator: ctx.Value("username").(string)}
 	newSavedTODOResult, err := DB.Database("test").Collection("todos").InsertOne(ctx, bson.M{"text": newTodo.Text, "creator": newTodo.Creator})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -116,7 +118,7 @@ func createTODO(w http.ResponseWriter, r *http.Request, username string) {
 
 }
 func updateTODO(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 	var todo PUTTODORequest
 	err := json.NewDecoder(r.Body).Decode(&todo)
@@ -133,7 +135,7 @@ func updateTODO(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func deleteTODO(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 	var todo PUTTODORequest
 	err := json.NewDecoder(r.Body).Decode(&todo)
